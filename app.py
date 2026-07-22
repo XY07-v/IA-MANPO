@@ -10,28 +10,27 @@ from flask import Flask, render_template, request, jsonify
 app = Flask(__name__)
 
 # ==========================================
-# 1. DICCIONARIO DE DESTINATARIOS POR REGIONAL
+# CONFIGURACIÓN Y DESTINATARIOS
 # ==========================================
 DESTINATARIOS_DICT = {
-    "Antioquia - Costa": ["correo1@empresa.com", "correo2@empresa.com"],
-    "Centro - Ori": ["correo3@empresa.com"],
-    "Cuentas Claves": ["correo4@empresa.com"],
-    "Eje - Occidente": ["correo5@empresa.com"],
+    "Antioquia - Costa": ["correo1@empresa.com"],
+    "Centro - Ori": ["correo2@empresa.com"],
+    "Cuentas Claves": ["correo3@empresa.com"],
+    "Eje - Occidente": ["correo4@empresa.com"],
     "TODOS": ["equipo_general@empresa.com"]
 }
 
-# CONFIGURACIÓN SMTP
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.office365.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 SMTP_USER = os.getenv("SMTP_USER", "tu_correo@empresa.com")
-SMTP_PASS = os.getenv("SMTP_PASS", "tu_contraseña_o_token")
+SMTP_PASS = os.getenv("SMTP_PASS", "tu_contraseña")
 
 MESES_ESPANOL = {
     1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
     7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
 }
 
-# MAPEO DE INDICADORES A COLUMNAS EN TU EXCEL
+# MAPEO EXACTO DE SECCIONES A TUS COLUMNAS EN EXCEL
 MAPEO_SECCIONES = {
     "Competencia": {"meta": "Metas Competencia", "real": "SP. Competencia", "efe": "Efe Competencia"},
     "Leads": {"meta": "Metas Leads", "real": "Leads.Leads", "efe": "Efe Leads"},
@@ -54,7 +53,7 @@ def obtener_fecha_corte_actual():
     nombre_mes = MESES_ESPANOL.get(ahora.month, "")
     return f"{ahora.day} de {nombre_mes} – {ahora.year}"
 
-def obtener_estilo_cumplimiento(porcentaje, meta_esperada):
+def estilo_cumplimiento(porcentaje, meta_esperada):
     if porcentaje >= meta_esperada:
         return 'background-color: #C6EFCE; color: #006100; font-weight: bold;', '✔️'
     elif porcentaje >= (meta_esperada - 10):
@@ -63,121 +62,98 @@ def obtener_estilo_cumplimiento(porcentaje, meta_esperada):
         return 'background-color: #FFC7CE; color: #9C0006; font-weight: bold;', '❌'
 
 def generar_html_reporte(df, secciones_seleccionadas, meta_esperada):
-    fecha_corte = obtener_fecha_corte_actual()
-    html_bloques = ""
-
-    # Limpiar nombres de columnas eliminando espacios antes/después
+    # Limpiar espacios en los nombres de las columnas
     df.columns = df.columns.str.strip()
 
-    col_nombre = 'NOMBRE COMPLETO' if 'NOMBRE COMPLETO' in df.columns else 'DESARROLLADOR'
-    col_reg = 'REGIONAL' if 'REGIONAL' in df.columns else 'REGIONAL'
+    # Detectar la columna del nombre
+    col_persona = None
+    for posible in ['NOMBRE COMPLETO', 'NOMBRE', 'DESARROLLADOR', 'CARGO']:
+        if posible in df.columns:
+            col_persona = posible
+            break
+
+    if not col_persona:
+        return "<h3 style='color:red;'>No se encontró la columna 'NOMBRE COMPLETO' o 'DESARROLLADOR' en el Excel.</h3>"
+
+    # Filtrar solo secciones que existan realmente en las columnas
+    columnas_a_sumar = []
+    secciones_validas = []
 
     for sec in secciones_seleccionadas:
-        if sec not in MAPEO_SECCIONES:
-            continue
-        
-        info = MAPEO_SECCIONES[sec]
-        col_meta = info['meta'].strip()
-        col_real = info['real'].strip()
-
-        if col_meta not in df.columns or col_real not in df.columns:
-            continue
-
-        # Convertir a numérico por seguridad
-        df[col_meta] = pd.to_numeric(df[col_meta], errors='coerce').fillna(0)
-        df[col_real] = pd.to_numeric(df[col_real], errors='coerce').fillna(0)
-
-        # 1. Total Indicador
-        tot_m = int(df[col_meta].sum())
-        tot_r = int(df[col_real].sum())
-        pct_tot = round((tot_r / tot_m * 100), 1) if tot_m > 0 else 0
-        est_tot, ico_tot = obtener_estilo_cumplimiento(pct_tot, meta_esperada)
-
-        # 2. Agrupado por Regional
-        filas_reg = ""
-        if col_reg in df.columns:
-            df_reg = df.groupby(col_reg)[[col_meta, col_real]].sum().reset_index()
-            for _, r in df_reg.iterrows():
-                m, real_val = int(r[col_meta]), int(r[col_real])
-                pct = round((real_val / m * 100), 1) if m > 0 else 0
-                est, ico = obtener_estilo_cumplimiento(pct, meta_esperada)
-                filas_reg += f"""
-                <tr>
-                    <td style="text-align:left; background-color: #f9f9f9;"><b>{r[col_reg]}</b></td>
-                    <td>{m}</td><td>{real_val}</td>
-                    <td style="{est}">{pct:.0f}% {ico}</td>
-                </tr>"""
-
-        # 3. Agrupado por Persona
-        filas_dev = ""
-        if col_nombre in df.columns:
-            df_dev = df.groupby(col_nombre)[[col_meta, col_real]].sum().reset_index().sort_values(by=col_real, ascending=False)
-            for _, r in df_dev.iterrows():
-                m, real_val = int(r[col_meta]), int(r[col_real])
-                pct = round((real_val / m * 100), 1) if m > 0 else 0
-                est, ico = obtener_estilo_cumplimiento(pct, meta_esperada)
-                filas_dev += f"""
-                <tr>
-                    <td style="text-align:left;">{r[col_nombre]}</td>
-                    <td>{m}</td><td>{real_val}</td>
-                    <td style="{est}">{pct:.0f}% {ico}</td>
-                </tr>"""
-
-        # Construir HTML del bloque
-        html_bloques += f"""
-        <div style="margin-top: 25px; border-top: 2px solid #2F5597; padding-top: 10px;">
-            <h3 style="color: #2F5597; margin-bottom: 8px;">📊 Reporte: {sec}</h3>
+        if sec in MAPEO_SECCIONES:
+            meta_col = MAPEO_SECCIONES[sec]['meta'].strip()
+            real_col = MAPEO_SECCIONES[sec]['real'].strip()
             
-            <table class="data-table">
-                <tr><th colspan="2" class="head-comp">{sec} Totales</th></tr>
-                <tr><td>Meta</td><td><b>{tot_m}</b></td></tr>
-                <tr><td>Real / Ejecutado</td><td><b>{tot_r}</b></td></tr>
-                <tr style="{est_tot}"><td>% Cumpl.</td><td>{pct_tot:.0f}% {ico_tot}</td></tr>
-            </table>
+            if meta_col in df.columns and real_col in df.columns:
+                df[meta_col] = pd.to_numeric(df[meta_col], errors='coerce').fillna(0)
+                df[real_col] = pd.to_numeric(df[real_col], errors='coerce').fillna(0)
+                columnas_a_sumar.extend([meta_col, real_col])
+                secciones_validas.append((sec, meta_col, real_col))
 
-            <div class="seccion">■ Por Regional ({sec}):</div>
-            <table class="data-table">
-                <tr>
-                    <th class="head-base">Regional</th>
-                    <th class="head-comp">Meta</th><th class="head-comp">Real</th>
-                    <th class="head-comp">% Cumplimiento</th>
-                </tr>
-                {filas_reg}
-            </table>
+    if not secciones_validas:
+        return "<h3 style='color:orange;'>No se seleccionaron secciones válidas o no coinciden con el Excel.</h3>"
 
-            <div class="seccion">■ Por Persona / Desarrollador ({sec}):</div>
-            <table class="data-table">
-                <tr>
-                    <th class="head-base">Nombre Completo</th>
-                    <th class="head-comp">Meta</th><th class="head-comp">Real</th>
-                    <th class="head-comp">% Cumplimiento</th>
-                </tr>
-                {filas_dev}
-            </table>
-        </div>
-        """
+    # AGRUPAR DE MANERA ÚNICA POR PERSONA
+    df_persona = df.groupby(col_persona)[columnas_a_sumar].sum().reset_index()
+
+    # CONSTRUIR ENCABEZADOS DE LA TABLA HTML
+    th_secciones = ""
+    th_sub = ""
+    for sec, _, _ in secciones_validas:
+        th_secciones += f"<th colspan='3' class='head-sec'>{sec}</th>"
+        th_sub += "<th class='head-sub'>Meta</th><th class='head-sub'>Real</th><th class='head-sub'>% Cumpl.</th>"
+
+    html_tabla = f"""
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th rowspan="2" class="head-main">Nombre Completo</th>
+                {th_secciones}
+            </tr>
+            <tr>
+                {th_sub}
+            </tr>
+        </thead>
+        <tbody>
+    """
+
+    # CONSTRUIR FILAS POR CADA PERSONA
+    for _, row in df_persona.iterrows():
+        html_tabla += f"<tr><td style='text-align:left; font-weight:bold;'>{row[col_persona]}</td>"
+        
+        for sec, meta_col, real_col in secciones_validas:
+            m = int(row[meta_col])
+            r = int(row[real_col])
+            pct = round((r / m * 100), 1) if m > 0 else 0
+            est, ico = estilo_cumplimiento(pct, meta_esperada)
+
+            html_tabla += f"<td>{m}</td><td>{r}</td><td style='{est}'>{pct:.0f}% {ico}</td>"
+        
+        html_tabla += "</tr>"
+
+    html_tabla += "</tbody></table>"
 
     return f"""
     <html>
     <head>
     <style>
-        body {{ font-family: 'Bahnschrift SemiCondensed', 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #333; }}
-        table {{ border-collapse: collapse; }}
-        .data-table {{ width: auto; margin-bottom: 15px; }}
-        .data-table th, .data-table td {{ border: 1px solid #ccc; padding: 4px 10px; text-align: center; white-space: nowrap; }}
-        .head-base {{ background-color: #f2f2f2; color: #000; font-weight: bold; }}
-        .head-comp {{ background-color: #DDEBF7; color: #000; }} 
-        .seccion {{ font-weight: bold; color: #2F5597; font-size: 13px; margin: 10px 0 5px 0; }}
+        body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #333; }}
+        .data-table {{ border-collapse: collapse; width: 100%; margin-top: 15px; font-size: 11px; }}
+        .data-table th, .data-table td {{ border: 1px solid #b0c4de; padding: 6px 8px; text-align: center; white-space: nowrap; }}
+        .head-main {{ background-color: #1F497D; color: white; vertical-align: middle; }}
+        .head-sec {{ background-color: #2F5597; color: white; font-size: 12px; }}
+        .head-sub {{ background-color: #DDEBF7; color: #000; font-weight: bold; }}
+        tr:nth-child(even) {{ background-color: #f9f9f9; }}
     </style>
     </head>
     <body>
         <p>Buenos días Equipo,</p>
-        <p>Comparto reporte consolidado al <b>{fecha_corte}</b>.</p>
-        <p><i>Nota: Meta esperada de cumplimiento a hoy: <b>{meta_esperada}%</b></i></p>
+        <p>Comparto el consolidado individual al <b>{obtener_fecha_corte_actual()}</b>:</p>
+        <p><i>Meta de cumplimiento esperada: <b>{meta_esperada}%</b></i></p>
 
-        {html_bloques if html_bloques else '<p><b>No se seleccionaron secciones válidas o existentes en el Excel.</b></p>'}
+        {html_tabla}
 
-        <p>Cordialmente,</p>
+        <p style="margin-top:20px;">Cordialmente,<br><b>Automatización de Reportes</b></p>
     </body>
     </html>
     """
@@ -205,7 +181,7 @@ def preview():
     try:
         file = request.files.get('file')
         if not file:
-            return "Por favor selecciona el archivo Excel desde tu escritorio.", 400
+            return "Por favor selecciona el archivo Excel desde tu equipo.", 400
         
         df = pd.read_excel(file, sheet_name="BASE")
         df.columns = df.columns.str.strip()
@@ -227,7 +203,7 @@ def preview():
 
         return generar_html_reporte(df, secciones_sel, meta_esperada)
     except Exception as e:
-        return f"<div style='color:red; padding:20px;'><b>Error al generar vista previa:</b><pre>{traceback.format_exc()}</pre></div>"
+        return f"<div style='color:red; padding:15px;'><b>Error al procesar:</b><pre>{traceback.format_exc()}</pre></div>"
 
 @app.route('/send', methods=['POST'])
 def send():
@@ -257,7 +233,7 @@ def send():
         correos = DESTINATARIOS_DICT.get(regional, DESTINATARIOS_DICT.get('TODOS', []))
 
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = f"Reporte Consolidado - {obtener_fecha_corte_actual()}"
+        msg['Subject'] = f"Reporte Consolidado por Persona - {obtener_fecha_corte_actual()}"
         msg['From'] = SMTP_USER
         msg['To'] = ", ".join(correos)
         msg.attach(MIMEText(html_body, 'html'))

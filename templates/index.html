@@ -3,23 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reporte de Competencia - Automatización</title>
+    <title>Reporte Personalizable - Automatización</title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f4f6f9; }
         .container { display: flex; gap: 20px; flex-wrap: wrap; }
         .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .panel-form { width: 360px; }
-        .panel-preview { flex-grow: 1; min-height: 550px; }
-        label { font-weight: bold; display: block; margin-top: 12px; font-size: 13px; color: #333; }
+        .panel-form { width: 380px; max-height: 85vh; overflow-y: auto; }
+        .panel-preview { flex-grow: 1; min-height: 600px; }
+        label { font-weight: bold; display: block; margin-top: 10px; font-size: 13px; color: #333; }
         select, input[type="file"], input[type="number"], input[type="text"] { 
             width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; 
         }
         button { width: 100%; padding: 11px; margin-top: 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
         .btn-gen { background-color: #2F5597; color: white; }
         .btn-send { background-color: #28a745; color: white; }
-        iframe { width: 100%; height: 600px; border: 1px solid #ddd; margin-top: 10px; border-radius: 4px; }
+        iframe { width: 100%; height: 650px; border: 1px solid #ddd; margin-top: 10px; border-radius: 4px; }
         .alert { padding: 10px; margin-bottom: 10px; border-radius: 4px; font-size: 13px; display: none; }
         .alert-info { background-color: #d1ecf1; color: #0c5460; }
+        
+        /* Estilos para los Checkboxes de columnas */
+        .checkbox-group { margin-top: 10px; border: 1px solid #e0e0e0; padding: 10px; border-radius: 5px; background: #fafafa; }
+        .checkbox-item { display: flex; align-items: center; margin-bottom: 6px; font-size: 12px; font-weight: normal; }
+        .checkbox-item input { margin-right: 8px; width: auto; }
+        .group-title { font-weight: bold; font-size: 13px; color: #2F5597; margin-top: 10px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
     </style>
 </head>
 <body>
@@ -27,7 +33,7 @@
     
     <div class="container">
         <div class="panel panel-form">
-            <h3>1. Cargar Archivo Excel</h3>
+            <h3>1. Configuración y Filtros</h3>
             <form id="reportForm" enctype="multipart/form-data">
                 <label>Seleccionar Excel (HOJA: BASE):</label>
                 <input type="file" name="file" id="file" accept=".xlsx, .xls" required>
@@ -44,8 +50,26 @@
                     <option value="TODOS">-- Todas las Regionales --</option>
                 </select>
 
-                <label>Meta Esperada (%):</label>
+                <label>Meta Esperada Cumplimiento (%):</label>
                 <input type="number" name="meta_esperada" id="meta_esperada" value="67">
+
+                <div class="group-title">2. Selecciona las Secciones a Proyectar:</div>
+                <div class="checkbox-group">
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Competencia" checked> Competencia (Meta, SP, Efe)</div>
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Leads"> Leads (Meta, Real, Efe)</div>
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Prospecciones"> Prospecciones (Meta, Real, Efe)</div>
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Food"> Food (Meta, SP, Efe)</div>
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Ingredientes"> Ingredientes (Meta, SP, Efe)</div>
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Puntos Claves"> Puntos Claves (POC, Prog, Efe)</div>
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Puntos Normal"> Puntos Normal (POC, Prog, Efe)</div>
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Logueos"> Logueos (Meta, Faltas, Efe)</div>
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Deslogueos"> Deslogueos (Meta, Faltas, Efe)</div>
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Sell Out"> Sell Out (Meta, Ejecutado, Efe)</div>
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Sell In"> Sell In (Meta, Ejecutado, Efe)</div>
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Instalaciones"> Instalaciones (Meta, Ejecutado, Efe)</div>
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Retiros"> Retiros (Meta, Ejecutado, Efe)</div>
+                    <div class="checkbox-item"><input type="checkbox" name="columnas_sel" value="Netas"> Netas (Meta, Ejecutado, Efe)</div>
+                </div>
 
                 <button type="button" class="btn-gen" onclick="generarVistaPrevia()">Ver Vista Previa</button>
                 <button type="button" class="btn-send" onclick="enviarCorreo()">Enviar Correo SMTP</button>
@@ -53,19 +77,18 @@
         </div>
 
         <div class="panel panel-preview">
-            <h3>2. Vista Previa del Reporte HTML</h3>
+            <h3>Vista Previa del Reporte Generado</h3>
             <iframe id="previewFrame"></iframe>
         </div>
     </div>
 
     <script>
-        // Cargar dinámicamente Filtros al seleccionar un Excel
         document.getElementById('file').addEventListener('change', function() {
             let formData = new FormData();
             formData.append('file', this.files[0]);
 
             document.getElementById('statusAlert').style.display = 'block';
-            document.getElementById('statusAlert').innerText = "Leyendo columnas y listas...";
+            document.getElementById('statusAlert').innerText = "Cargando opciones...";
 
             fetch('/get-filters', { method: 'POST', body: formData })
             .then(res => res.json())
@@ -76,12 +99,10 @@
                     return;
                 }
                 
-                // Llenar Meses
                 let selectMes = document.getElementById('mes');
                 selectMes.innerHTML = '<option value="TODOS">-- Todos los Meses --</option>';
                 data.meses.forEach(m => selectMes.innerHTML += `<option value="${m}">${m}</option>`);
 
-                // Llenar Regionales
                 let selectReg = document.getElementById('regional');
                 selectReg.innerHTML = '<option value="TODOS">-- Todas las Regionales --</option>';
                 data.regionales.forEach(r => selectReg.innerHTML += `<option value="${r}">${r}</option>`);
@@ -101,7 +122,7 @@
         }
 
         function enviarCorreo() {
-            if(!confirm("¿Deseas enviar este correo a los destinatarios configurados?")) return;
+            if(!confirm("¿Deseas enviar este reporte con las secciones seleccionadas?")) return;
             
             let formData = new FormData(document.getElementById('reportForm'));
             fetch('/send', { method: 'POST', body: formData })

@@ -30,22 +30,22 @@ MESES_ESPANOL = {
     7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
 }
 
-# MAPEO EXACTO DE SECCIONES A TUS COLUMNAS EN EXCEL
+# MAPEO DE SECCIONES A TUS COLUMNAS EN EXCEL
 MAPEO_SECCIONES = {
-    "Competencia": {"meta": "Metas Competencia", "real": "SP. Competencia", "efe": "Efe Competencia"},
-    "Leads": {"meta": "Metas Leads", "real": "Leads.Leads", "efe": "Efe Leads"},
-    "Prospecciones": {"meta": "Metas Prospecciones", "real": "Prospecciones", "efe": "Efe Prospecciones"},
-    "Food": {"meta": "Metas Food", "real": "SP. Food", "efe": "Efe Food"},
-    "Ingredientes": {"meta": "Metas Ingredientes", "real": "SP. Ingredientes", "efe": "Efe Ingredientes"},
-    "Puntos Claves": {"meta": "Puntos Programados Claves", "real": "Poc Visitados Claves", "efe": "Efe Puntos Claves"},
-    "Puntos Normal": {"meta": "Puntos Programados Normal", "real": "Poc Visitados Normal", "efe": "Efe Puntos Normales"},
-    "Logueos": {"meta": "Metas Logueos", "real": "Faltas Logueos", "efe": "Efe Logueos"},
-    "Deslogueos": {"meta": "Metas Deslogueos", "real": "Faltas Deslogueos", "efe": "Efe Deslogueos"},
-    "Sell Out": {"meta": "Meta Sell Out", "real": "Ejecutado Sell Out", "efe": "efe Sell Out"},
-    "Sell In": {"meta": "Meta Sell In", "real": "Ejecutado Sell In", "efe": "Efe Sell In"},
-    "Instalaciones": {"meta": "Meta instalaciones", "real": "Ejecutado Instalaciones", "efe": "Efe instalaciones"},
-    "Retiros": {"meta": "Meta Retiros", "real": "Ejecutado Retiros", "efe": "Efe Retiros"},
-    "Netas": {"meta": "Meta Netas", "real": "Ejecutado Netas", "efe": "Efe Netas"}
+    "Competencia": {"meta": "Metas Competencia", "real": "SP. Competencia", "efe": "Efe Competencia", "label": "Comp."},
+    "Leads": {"meta": "Metas Leads", "real": "Leads.Leads", "efe": "Efe Leads", "label": "Leads"},
+    "Prospecciones": {"meta": "Metas Prospecciones", "real": "Prospecciones", "efe": "Efe Prospecciones", "label": "Prosp."},
+    "Food": {"meta": "Metas Food", "real": "SP. Food", "efe": "Efe Food", "label": "Food"},
+    "Ingredientes": {"meta": "Metas Ingredientes", "real": "SP. Ingredientes", "efe": "Efe Ingredientes", "label": "Ingred."},
+    "Puntos Claves": {"meta": "Puntos Programados Claves", "real": "Poc Visitados Claves", "efe": "Efe Puntos Claves", "label": "Pts. Claves"},
+    "Puntos Normal": {"meta": "Puntos Programados Normal", "real": "Poc Visitados Normal", "efe": "Efe Puntos Normales", "label": "Pts. Normal"},
+    "Logueos": {"meta": "Metas Logueos", "real": "Faltas Logueos", "efe": "Efe Logueos", "label": "Logueos"},
+    "Deslogueos": {"meta": "Metas Deslogueos", "real": "Faltas Deslogueos", "efe": "Efe Deslogueos", "label": "Deslogueos"},
+    "Sell Out": {"meta": "Meta Sell Out", "real": "Ejecutado Sell Out", "efe": "efe Sell Out", "label": "Sell Out"},
+    "Sell In": {"meta": "Meta Sell In", "real": "Ejecutado Sell In", "efe": "Efe Sell In", "label": "Sell In"},
+    "Instalaciones": {"meta": "Meta instalaciones", "real": "Ejecutado Instalaciones", "efe": "Efe instalaciones", "label": "Instal."},
+    "Retiros": {"meta": "Meta Retiros", "real": "Ejecutado Retiros", "efe": "Efe Retiros", "label": "Retiros"},
+    "Netas": {"meta": "Meta Netas", "real": "Ejecutado Netas", "efe": "Efe Netas", "label": "Netas"}
 }
 
 def obtener_fecha_corte_actual():
@@ -62,98 +62,173 @@ def estilo_cumplimiento(porcentaje, meta_esperada):
         return 'background-color: #FFC7CE; color: #9C0006; font-weight: bold;', '❌'
 
 def generar_html_reporte(df, secciones_seleccionadas, meta_esperada):
-    # Limpiar espacios en los nombres de las columnas
     df.columns = df.columns.str.strip()
 
-    # Detectar la columna del nombre
     col_persona = None
     for posible in ['NOMBRE COMPLETO', 'NOMBRE', 'DESARROLLADOR', 'CARGO']:
         if posible in df.columns:
             col_persona = posible
             break
 
-    if not col_persona:
-        return "<h3 style='color:red;'>No se encontró la columna 'NOMBRE COMPLETO' o 'DESARROLLADOR' en el Excel.</h3>"
+    col_regional = 'REGIONAL' if 'REGIONAL' in df.columns else None
 
-    # Filtrar solo secciones que existan realmente en las columnas
-    columnas_a_sumar = []
-    secciones_validas = []
+    html_bloques = ""
 
     for sec in secciones_seleccionadas:
-        if sec in MAPEO_SECCIONES:
-            meta_col = MAPEO_SECCIONES[sec]['meta'].strip()
-            real_col = MAPEO_SECCIONES[sec]['real'].strip()
-            
-            if meta_col in df.columns and real_col in df.columns:
-                df[meta_col] = pd.to_numeric(df[meta_col], errors='coerce').fillna(0)
-                df[real_col] = pd.to_numeric(df[real_col], errors='coerce').fillna(0)
-                columnas_a_sumar.extend([meta_col, real_col])
-                secciones_validas.append((sec, meta_col, real_col))
+        if sec not in MAPEO_SECCIONES:
+            continue
 
-    if not secciones_validas:
-        return "<h3 style='color:orange;'>No se seleccionaron secciones válidas o no coinciden con el Excel.</h3>"
+        info = MAPEO_SECCIONES[sec]
+        meta_col = info['meta'].strip()
+        real_col = info['real'].strip()
+        lbl = info['label']
 
-    # AGRUPAR DE MANERA ÚNICA POR PERSONA
-    df_persona = df.groupby(col_persona)[columnas_a_sumar].sum().reset_index()
+        if meta_col not in df.columns or real_col not in df.columns:
+            continue
 
-    # CONSTRUIR ENCABEZADOS DE LA TABLA HTML
-    th_secciones = ""
-    th_sub = ""
-    for sec, _, _ in secciones_validas:
-        th_secciones += f"<th colspan='3' class='head-sec'>{sec}</th>"
-        th_sub += "<th class='head-sub'>Meta</th><th class='head-sub'>Real</th><th class='head-sub'>% Cumpl.</th>"
+        # Asegurar números
+        df[meta_col] = pd.to_numeric(df[meta_col], errors='coerce').fillna(0)
+        df[real_col] = pd.to_numeric(df[real_col], errors='coerce').fillna(0)
 
-    html_tabla = f"""
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th rowspan="2" class="head-main">Nombre Completo</th>
-                {th_secciones}
-            </tr>
-            <tr>
-                {th_sub}
-            </tr>
-        </thead>
-        <tbody>
-    """
-
-    # CONSTRUIR FILAS POR CADA PERSONA
-    for _, row in df_persona.iterrows():
-        html_tabla += f"<tr><td style='text-align:left; font-weight:bold;'>{row[col_persona]}</td>"
+        # ----------------------------------------------------
+        # 1. TABLA GLOBAL DEL INDICADOR
+        # ----------------------------------------------------
+        tot_meta = int(df[meta_col].sum())
+        tot_real = int(df[real_col].sum())
         
-        for sec, meta_col, real_col in secciones_validas:
-            m = int(row[meta_col])
-            r = int(row[real_col])
-            pct = round((r / m * 100), 1) if m > 0 else 0
-            est, ico = estilo_cumplimiento(pct, meta_esperada)
+        # Si la meta total global es 0, omitir la sección por completo
+        if tot_meta == 0:
+            continue
 
-            html_tabla += f"<td>{m}</td><td>{r}</td><td style='{est}'>{pct:.0f}% {ico}</td>"
-        
-        html_tabla += "</tr>"
+        pct_global = round((tot_real / tot_meta * 100), 1)
+        est_g, ico_g = estilo_cumplimiento(pct_global, meta_esperada)
 
-    html_tabla += "</tbody></table>"
+        tabla_global = f"""
+        <table class="data-table table-global">
+            <tr><th colspan="2" class="head-blue">{sec}</th></tr>
+            <tr><td>Meta</td><td><b>{tot_meta}</b></td></tr>
+            <tr><td>Real</td><td><b>{tot_real}</b></td></tr>
+            <tr style="{est_g}"><td>% CumpL.</td><td>{pct_global:.0f}% {ico_g}</td></tr>
+        </table>
+        """
+
+        # ----------------------------------------------------
+        # 2. TABLA POR REGIONAL (Meta > 0, Ordenado por % CumpL desc)
+        # ----------------------------------------------------
+        tabla_regional_html = ""
+        if col_regional:
+            df_reg = df.groupby(col_regional)[[meta_col, real_col]].sum().reset_index()
+            # OMITIR METAS = 0
+            df_reg = df_reg[df_reg[meta_col] > 0].copy()
+            df_reg['PCT'] = (df_reg[real_col] / df_reg[meta_col]) * 100
+            # ORDENAR DE MAYOR A MENOR EFECTIVIDAD
+            df_reg = df_reg.sort_values(by='PCT', ascending=False)
+
+            filas_reg = ""
+            for _, r in df_reg.iterrows():
+                m, real_v = int(r[meta_col]), int(r[real_col])
+                pct = r['PCT']
+                est, ico = estilo_cumplimiento(pct, meta_esperada)
+                filas_reg += f"""
+                <tr>
+                    <td style="text-align:left; font-weight:bold;">{r[col_regional]}</td>
+                    <td>{m}</td>
+                    <td>{real_v}</td>
+                    <td style="{est}">{pct:.0f}% {ico}</td>
+                </tr>"""
+
+            if filas_reg:
+                tabla_regional_html = f"""
+                <div class="sub-title">■ Por Regional:</div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th class="head-gray">Regional</th>
+                            <th class="head-blue">Meta {lbl}</th>
+                            <th class="head-blue">Real {lbl}</th>
+                            <th class="head-blue">% Cumplimiento</th>
+                        </tr>
+                    </thead>
+                    <tbody>{filas_reg}</tbody>
+                </table>"""
+
+        # ----------------------------------------------------
+        # 3. TABLA POR DESARROLLADOR/PERSONA (Meta > 0, Ordenado desc)
+        # ----------------------------------------------------
+        tabla_dev_html = ""
+        if col_persona:
+            df_dev = df.groupby(col_persona)[[meta_col, real_col]].sum().reset_index()
+            # OMITIR METAS = 0 O VACÍAS
+            df_dev = df_dev[df_dev[meta_col] > 0].copy()
+            df_dev['PCT'] = (df_dev[real_col] / df_dev[meta_col]) * 100
+            # ORDENAR DE MAYOR A MENOR EFECTIVIDAD
+            df_dev = df_dev.sort_values(by='PCT', ascending=False)
+
+            filas_dev = ""
+            for _, r in df_dev.iterrows():
+                m, real_v = int(r[meta_col]), int(r[real_v] if real_v in r else r[real_col])
+                pct = r['PCT']
+                est, ico = estilo_cumplimiento(pct, meta_esperada)
+                filas_dev += f"""
+                <tr>
+                    <td style="text-align:left;">{r[col_persona]}</td>
+                    <td>{m}</td>
+                    <td>{real_v}</td>
+                    <td style="{est}">{pct:.0f}% {ico}</td>
+                </tr>"""
+
+            if filas_dev:
+                tabla_dev_html = f"""
+                <div class="sub-title">■ Por Desarrollador:</div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th class="head-gray">Nombres</th>
+                            <th class="head-blue">Meta {lbl}</th>
+                            <th class="head-blue">Real {lbl}</th>
+                            <th class="head-blue">% Cumplimiento</th>
+                        </tr>
+                    </thead>
+                    <tbody>{filas_dev}</tbody>
+                </table>"""
+
+        # UNIR LAS 3 TABLAS EN EL ORDEN SOLICITADO
+        html_bloques += f"""
+        <div class="bloque-indicador">
+            {tabla_global}
+            {tabla_regional_html}
+            {tabla_dev_html}
+        </div>
+        <br>
+        """
 
     return f"""
     <html>
     <head>
     <style>
-        body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #333; }}
-        .data-table {{ border-collapse: collapse; width: 100%; margin-top: 15px; font-size: 11px; }}
-        .data-table th, .data-table td {{ border: 1px solid #b0c4de; padding: 6px 8px; text-align: center; white-space: nowrap; }}
-        .head-main {{ background-color: #1F497D; color: white; vertical-align: middle; }}
-        .head-sec {{ background-color: #2F5597; color: white; font-size: 12px; }}
-        .head-sub {{ background-color: #DDEBF7; color: #000; font-weight: bold; }}
-        tr:nth-child(even) {{ background-color: #f9f9f9; }}
+        body {{ font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #333; margin: 15px; }}
+        .bloque-indicador {{ margin-bottom: 25px; }}
+        .data-table {{ border-collapse: collapse; margin-top: 5px; font-size: 11px; }}
+        .data-table th, .data-table td {{ border: 1px solid #b0c4de; padding: 5px 12px; text-align: center; white-space: nowrap; }}
+        
+        .table-global {{ width: 180px; margin-bottom: 12px; }}
+        .table-global td {{ font-size: 12px; }}
+        
+        .head-blue {{ background-color: #DDEBF7; color: #000; font-weight: bold; border: 1px solid #b0c4de; }}
+        .head-gray {{ background-color: #EAEAEA; color: #000; font-weight: bold; border: 1px solid #b0c4de; }}
+        
+        .sub-title {{ font-weight: bold; color: #1F497D; font-size: 12px; margin-top: 12px; margin-bottom: 4px; }}
+        tr:nth-child(even) {{ background-color: #FAFAFA; }}
     </style>
     </head>
     <body>
         <p>Buenos días Equipo,</p>
-        <p>Comparto el consolidado individual al <b>{obtener_fecha_corte_actual()}</b>:</p>
-        <p><i>Meta de cumplimiento esperada: <b>{meta_esperada}%</b></i></p>
+        <p>Comparto el reporte detallado al <b>{obtener_fecha_corte_actual()}</b>.</p>
+        <p><i>Meta esperada de cumplimiento: <b>{meta_esperada}%</b></i></p>
 
-        {html_tabla}
+        {html_bloques if html_bloques else '<p><b>No hay datos con meta mayor a 0 para las secciones seleccionadas.</b></p>'}
 
-        <p style="margin-top:20px;">Cordialmente,<br><b>Automatización de Reportes</b></p>
+        <p style="margin-top:20px;">Cordialmente,<br><b>Sistema de Reportes</b></p>
     </body>
     </html>
     """
@@ -191,13 +266,14 @@ def preview():
         meta_esperada = float(request.form.get('meta_esperada', 67))
         secciones_sel = request.form.getlist('columnas_sel')
 
-        # Aplicar Filtros
+        # Filtro de Mes
         if mes and mes != 'TODOS' and 'MES' in df.columns:
             if pd.api.types.is_numeric_dtype(df['MES']):
                 try: mes = float(mes)
                 except ValueError: pass
             df = df[df['MES'] == mes]
             
+        # Filtro de Regional
         if regional and regional != 'TODOS' and 'REGIONAL' in df.columns:
             df = df[df['REGIONAL'] == regional]
 
@@ -233,7 +309,7 @@ def send():
         correos = DESTINATARIOS_DICT.get(regional, DESTINATARIOS_DICT.get('TODOS', []))
 
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = f"Reporte Consolidado por Persona - {obtener_fecha_corte_actual()}"
+        msg['Subject'] = f"Reporte de Competencia y Gestión - {obtener_fecha_corte_actual()}"
         msg['From'] = SMTP_USER
         msg['To'] = ", ".join(correos)
         msg.attach(MIMEText(html_body, 'html'))
@@ -243,7 +319,7 @@ def send():
             server.login(SMTP_USER, SMTP_PASS)
             server.sendmail(SMTP_USER, correos, msg.as_string())
 
-        return jsonify({"message": f"Correo enviado a: {', '.join(correos)}"})
+        return jsonify({"message": f"Correo enviado con éxito a: {', '.join(correos)}"})
     except Exception as e:
         return jsonify({"message": f"Error al enviar correo: {str(e)}"}), 500
 
